@@ -47,6 +47,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link href="/dashboard/customers" className="block px-6 py-3 hover:bg-gray-800 transition">
             👥 কাস্টমার
           </Link>
+<Link href="/dashboard/reports" className="block px-6 py-3 hover:bg-gray-800 transition">
+  📈 রিপোর্টস
+</Link>
+<Link href="/dashboard/profile" className="block px-6 py-3 hover:bg-gray-800 transition">
+  👤 প্রোফাইল
+</Link>
           <button
             onClick={handleLogout}
             className="w-full text-left px-6 py-3 hover:bg-gray-800 transition mt-20 text-red-400"

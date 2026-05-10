@@ -4,6 +4,7 @@ import DashboardLayout from '../components/DashboardLayout'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
+
 export default function DashboardPage() {
   const [stats, setStats] = useState({
     products: 0,

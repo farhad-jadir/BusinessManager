@@ -9,11 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@fontsource/hind-siliguri": "^5.2.7",
+    "@fontsource/noto-sans-bengali": "^5.2.11",
+    "@fontsource/tiro-bangla": "^5.2.7",
     "@supabase/supabase-js": "^2.105.4",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.75.0",
+    "recharts": "^3.8.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
