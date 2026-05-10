@@ -3,7 +3,29 @@
 import DashboardLayout from '../../../app/components/DashboardLayout'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { Customer, Order } from '../../../types'
+
+// টাইপ ডিফাইন করার জন্য লোকাল ইন্টারফেস
+interface Customer {
+  id: string
+  user_id: string
+  name: string
+  phone: string
+  email: string | null
+  address: string | null
+  total_orders: number
+  total_spent: number
+  last_order_date: string | null
+  created_at: string
+}
+
+interface Order {
+  id: string
+  total_amount: number
+  created_at: string
+  status: string
+  customer_phone: string
+  user_id: string
+}
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -26,109 +48,135 @@ export default function CustomersPage() {
   }, [])
 
   const fetchCustomers = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    // প্রথমে কাস্টমারদের ডাটা আনি
-    const { data: customersData, error: customersError } = await supabase
-      .from('customers')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('total_spent', { ascending: false })
-
-    if (!customersError && customersData) {
-      // প্রতিটি কাস্টমারের জন্য অর্ডার কাউন্ট এবং টোটাল স্পেন্ট আপডেট করি
-      for (const customer of customersData) {
-        const { data: orders } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('customer_phone', customer.phone)
-          .eq('status', 'completed')
-
-        const totalOrders = orders?.length || 0
-        const totalSpent = orders?.reduce((sum, order) => sum + order.total_amount, 0) || 0
-        const lastOrder = orders?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
-
-        // কাস্টমার আপডেট করি
-        await supabase
-          .from('customers')
-          .update({
-            total_orders: totalOrders,
-            total_spent: totalSpent,
-            last_order_date: lastOrder?.created_at || null
-          })
-          .eq('id', customer.id)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
       }
 
-      // আবার ফেচ করি আপডেটেড ডাটা
-      const { data: updatedCustomers } = await supabase
+      // প্রথমে কাস্টমারদের ডাটা আনি
+      const { data: customersData, error: customersError } = await supabase
         .from('customers')
         .select('*')
         .eq('user_id', user.id)
         .order('total_spent', { ascending: false })
 
-      setCustomers(updatedCustomers || [])
+      if (!customersError && customersData) {
+        // প্রতিটি কাস্টমারের জন্য অর্ডার কাউন্ট এবং টোটাল স্পেন্ট আপডেট করি
+        for (const customer of customersData) {
+          const { data: orders } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('customer_phone', customer.phone)
+            .eq('status', 'completed')
+
+          const totalOrders = orders?.length || 0
+          const totalSpent = orders?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0
+          const lastOrder = orders?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+
+          // কাস্টমার আপডেট করি
+          await supabase
+            .from('customers')
+            .update({
+              total_orders: totalOrders,
+              total_spent: totalSpent,
+              last_order_date: lastOrder?.created_at || null
+            })
+            .eq('id', customer.id)
+        }
+
+        // আবার ফেচ করি আপডেটেড ডাটা
+        const { data: updatedCustomers } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('total_spent', { ascending: false })
+
+        setCustomers(updatedCustomers || [])
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const fetchCustomerOrders = async (customer: Customer) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('customer_phone', customer.phone)
-      .order('created_at', { ascending: false })
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('customer_phone', customer.phone)
+        .order('created_at', { ascending: false })
 
-    setCustomerOrders(orders || [])
-    setSelectedCustomer(customer)
-    setShowOrdersModal(true)
+      setCustomerOrders(orders || [])
+      setSelectedCustomer(customer)
+      setShowOrdersModal(true)
+    } catch (error) {
+      console.error('Error fetching orders:', error)
+    }
   }
 
   const addCustomer = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormLoading(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    const { error } = await supabase
-      .from('customers')
-      .insert([
-        {
-          user_id: user.id,
-          name: formData.name,
-          phone: formData.phone,
-          email: formData.email || null,
-          address: formData.address || null
-        }
-      ])
+      const { error } = await supabase
+        .from('customers')
+        .insert([
+          {
+            user_id: user.id,
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email || null,
+            address: formData.address || null,
+            total_orders: 0,
+            total_spent: 0,
+            last_order_date: null
+          }
+        ])
 
-    if (!error) {
-      setShowAddModal(false)
-      setFormData({ name: '', phone: '', email: '', address: '' })
-      fetchCustomers()
-    } else {
-      alert('কাস্টমার যোগ করতে সমস্যা হয়েছে। ফোন নম্বর আগে থেকেই থাকতে পারে।')
+      if (!error) {
+        setShowAddModal(false)
+        setFormData({ name: '', phone: '', email: '', address: '' })
+        fetchCustomers()
+      } else {
+        alert('কাস্টমার যোগ করতে সমস্যা হয়েছে। ফোন নম্বর আগে থেকেই থাকতে পারে।')
+      }
+    } catch (error) {
+      console.error('Error adding customer:', error)
+      alert('কাস্টমার যোগ করতে সমস্যা হয়েছে')
+    } finally {
+      setFormLoading(false)
     }
-    setFormLoading(false)
   }
 
   const deleteCustomer = async (id: string, phone: string) => {
     if (!confirm('এই কাস্টমারকে ডিলিট করতে চান? তার সমস্ত অর্ডার থাকবে কিন্তু কাস্টমার লিস্ট থেকে চলে যাবে।')) return
 
-    const { error } = await supabase
-      .from('customers')
-      .delete()
-      .eq('id', id)
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', id)
 
-    if (!error) {
-      setCustomers(customers.filter(c => c.id !== id))
-    } else {
+      if (!error) {
+        setCustomers(customers.filter(c => c.id !== id))
+      } else {
+        alert('ডিলিট করতে সমস্যা হয়েছে')
+      }
+    } catch (error) {
+      console.error('Error deleting customer:', error)
       alert('ডিলিট করতে সমস্যা হয়েছে')
     }
   }
@@ -142,12 +190,22 @@ export default function CustomersPage() {
     if (totalSpent > 50000) {
       return <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">প্লাটিনাম</span>
     } else if (totalSpent > 20000) {
-      return <span className="px-2 py-1 rounded-full text-xs bg-gold-100 text-gold-800">গোল্ড</span>
+      return <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">গোল্ড</span>
     } else if (totalSpent > 5000) {
       return <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">সিলভার</span>
     } else {
       return <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">নিয়মিত</span>
     }
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex justify-center items-center h-64">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -187,23 +245,20 @@ export default function CustomersPage() {
         </div>
 
         {/* কাস্টমার লিস্ট */}
-        {loading ? (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-gray-600 mt-3">লোড হচ্ছে...</p>
-          </div>
-        ) : filteredCustomers.length === 0 ? (
+        {filteredCustomers.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-12 text-center">
             <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            <p className="text-gray-600">কোনো কাস্টমার নেই</p>
-            <button 
-              onClick={() => setShowAddModal(true)}
-              className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              প্রথম কাস্টমার যোগ করুন
-            </button>
+            <p className="text-gray-600">{searchTerm ? 'কোনো কাস্টমার খুঁজে পাওয়া যায়নি' : 'কোনো কাস্টমার নেই'}</p>
+            {!searchTerm && (
+              <button 
+                onClick={() => setShowAddModal(true)}
+                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+              >
+                প্রথম কাস্টমার যোগ করুন
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
