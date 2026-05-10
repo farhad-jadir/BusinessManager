@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import DashboardLayout from '../../../app/components/DashboardLayout'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
@@ -73,8 +75,8 @@ export default function CustomersPage() {
             .eq('status', 'completed')
 
           const totalOrders = orders?.length || 0
-          const totalSpent = orders?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0
-          const lastOrder = orders?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+          const totalSpent = orders?.reduce((sum: number, order: Order) => sum + (order.total_amount || 0), 0) || 0
+          const lastOrder = orders?.sort((a: Order, b: Order) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
 
           // কাস্টমার আপডেট করি
           await supabase
@@ -161,7 +163,7 @@ export default function CustomersPage() {
     }
   }
 
-  const deleteCustomer = async (id: string, phone: string) => {
+  const deleteCustomer = async (id: string) => {
     if (!confirm('এই কাস্টমারকে ডিলিট করতে চান? তার সমস্ত অর্ডার থাকবে কিন্তু কাস্টমার লিস্ট থেকে চলে যাবে।')) return
 
     try {
@@ -313,7 +315,7 @@ export default function CustomersPage() {
                       অর্ডার ইতিহাস
                     </button>
                     <button
-                      onClick={() => deleteCustomer(customer.id, customer.phone)}
+                      onClick={() => deleteCustomer(customer.id)}
                       className="text-red-600 hover:text-red-800 p-2"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
