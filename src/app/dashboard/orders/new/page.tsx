@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import DashboardLayout from '../../../../app/components/DashboardLayout'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../../lib/supabase'
@@ -27,23 +29,28 @@ export default function NewOrderPage() {
   }, [])
 
   const fetchProducts = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      router.push('/')
-      return
-    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/')
+        return
+      }
 
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('user_id', user.id)
-      .gt('stock', 0) // শুধু স্টক থাকা পণ্য দেখাবে
-      .order('name')
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('user_id', user.id)
+        .gt('stock', 0)
+        .order('name')
 
-    if (!error && data) {
-      setProducts(data)
+      if (!error && data) {
+        setProducts(data)
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error)
+    } finally {
+      setFetchingProducts(false)
     }
-    setFetchingProducts(false)
   }
 
   const addToCart = () => {
@@ -124,53 +131,60 @@ export default function NewOrderPage() {
     setLoading(true)
     setError('')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setError('আপনি লগইন নন')
-      setLoading(false)
-      return
-    }
-
-    // ১. অর্ডার ইনসার্ট করুন
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert([
-        {
-          user_id: user.id,
-          customer_name: customerName,
-          customer_phone: customerPhone || null,
-          total_amount: getTotalAmount(),
-          status: 'pending'
-        }
-      ])
-      .select()
-      .single()
-
-    if (orderError) {
-      setError(orderError.message)
-      setLoading(false)
-      return
-    }
-
-    // ২. প্রতিটি পণ্যের জন্য স্টক আপডেট করুন
-    for (const item of cart) {
-      const newStock = item.product.stock - item.quantity
-      const { error: stockError } = await supabase
-        .from('products')
-        .update({ stock: newStock })
-        .eq('id', item.product.id)
-
-      if (stockError) {
-        // কিছু ভুল হলে পুরো অর্ডার ডিলিট করুন
-        await supabase.from('orders').delete().eq('id', order.id)
-        setError(`স্টক আপডেট করতে সমস্যা: ${item.product.name}`)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('আপনি লগইন নন')
         setLoading(false)
         return
       }
-    }
 
-    // ৩. সফল হলে অর্ডার পেজে রিডাইরেক্ট
-    router.push('/dashboard/orders')
+      // ১. অর্ডার ইনসার্ট করুন
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert([
+          {
+            user_id: user.id,
+            customer_name: customerName,
+            customer_phone: customerPhone || null,
+            total_amount: getTotalAmount(),
+            status: 'pending'
+          }
+        ])
+        .select()
+        .single()
+
+      if (orderError) {
+        setError(orderError.message)
+        setLoading(false)
+        return
+      }
+
+      // ২. প্রতিটি পণ্যের জন্য স্টক আপডেট করুন
+      for (const item of cart) {
+        const newStock = item.product.stock - item.quantity
+        const { error: stockError } = await supabase
+          .from('products')
+          .update({ stock: newStock })
+          .eq('id', item.product.id)
+
+        if (stockError) {
+          // কিছু ভুল হলে পুরো অর্ডার ডিলিট করুন
+          await supabase.from('orders').delete().eq('id', order.id)
+          setError(`স্টক আপডেট করতে সমস্যা: ${item.product.name}`)
+          setLoading(false)
+          return
+        }
+      }
+
+      // ৩. সফল হলে অর্ডার পেজে রিডাইরেক্ট
+      router.push('/dashboard/orders')
+    } catch (error) {
+      console.error('Error creating order:', error)
+      setError('অর্ডার তৈরি করতে সমস্যা হয়েছে')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
